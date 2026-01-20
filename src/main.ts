@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import cookieParser from 'cookie-parser';
+import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 
@@ -13,7 +13,7 @@ async function bootstrap() {
 	const globalPrefix = 'api';
 	app.setGlobalPrefix(globalPrefix);
 
-  app.useGlobalPipes(new ValidationPipe({
+	app.useGlobalPipes(new ValidationPipe({
 		whitelist: true,
 		forbidNonWhitelisted: false,
 		transform: true,
@@ -35,19 +35,19 @@ async function bootstrap() {
 		},
 	}),);
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: [`'self'`],
-        styleSrc: [`'self'`, `'unsafe-inline'`],
-        imgSrc: [`'self'`, 'data:', 'validator.swagger.io'],
-        scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+	app.use(helmet({
+		contentSecurityPolicy: {
+		directives: {
+			defaultSrc: [`'self'`],
+			styleSrc: [`'self'`, `'unsafe-inline'`],
+			imgSrc: [`'self'`, 'data:', 'validator.swagger.io'],
+			scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
+		},
+		},
+		crossOriginEmbedderPolicy: false,
+	}));
 
-  app.use(cookieParser());
+	app.use(cookieParser());
 
 	app.enableCors({
 		origin: process.env.FRONTEND_URL || 'http://localhost:3001',
@@ -56,6 +56,6 @@ async function bootstrap() {
 		allowedHeaders: 'Content-Type, Authorization',
 	});
 
-  await app.listen(process.env.PORT ?? 3000);
+	await app.listen(process.env.PORT ?? 3002);
 }
 bootstrap();
