@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String                  @id @default(uuid())
+  email     String                  @unique
+  password  String
+  createdAt DateTime                @default(now()) @map("created_at")
+  updatedAt DateTime                @updatedAt @map("updated_at")
+
+  topics Topic[]
+
+  @@map("users")
+}
+
+model Topic {
+  id             String             @id @default(uuid())
+  title          String
+  sourceType     SourceType         @map("source_type")
+  
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String             @map("user_id")
+
+  summary        Summary?
+  questions      Question[]
+  
+  nextReviewDate DateTime           @default(now()) @map("next_review_date")
+  reviewLevel    Int                @default(0) @map("review_level")
+  
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([nextReviewDate])
+  @@map("topics")
+}
+
+model Summary {
+  id       String                   @id @default(uuid())
+  content  String                   @db.Text
+  keyTerms Json?                    @map("key_terms")
+
+  topic    Topic                    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId  String                   @unique @map("topic_id")
+
+  @@map("summaries")
+}
+
+model Question {
+  id         String                 @id @default(uuid())
+  text       String
+  options    String[]
+  answer     Int
+  difficulty QuestionDifficulty
+
+  topic      Topic                  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId    String                 @map("topic_id")
+
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+
+  @@index([topicId])
+  @@map("questions")
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SourceType {
+  YOUTUBE
+  ARTICLE
+  PDF
+}
