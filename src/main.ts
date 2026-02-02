@@ -1,17 +1,25 @@
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { CatchEverythingFilter } from './app/shared/filters/exception.filter';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule, {
 		bufferLogs: true,
-		snapshot: true
+		snapshot: true,
 	});
 
 	const globalPrefix = 'api';
 	app.setGlobalPrefix(globalPrefix);
+
+	const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+    app.useLogger(logger);
+
+	const httpAdapterHost = app.get(HttpAdapterHost);
+    app.useGlobalFilters(new CatchEverythingFilter(httpAdapterHost, logger));
 
 	app.useGlobalPipes(new ValidationPipe({
 		whitelist: true,
