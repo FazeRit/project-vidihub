@@ -16,8 +16,8 @@ export class ChatModel {
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  description: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  description?: string;
 
   @OneToMany(() => MessageModel, (message) => message.chat, { cascade: true })
   messages: Array<MessageModel>;

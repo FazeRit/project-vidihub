@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { ChatModel } from '../../chat/entities/chat.model';
 
-export enum MessageRoleEnum {
+export enum EMessageRoleEnum {
   USER = 'user',
   AI = 'ai',
 }
@@ -22,8 +22,8 @@ export class MessageModel {
   @Column({ type: 'text' })
   content: string;
 
-  @Column({ type: 'enum', enum: MessageRoleEnum })
-  role: MessageRoleEnum;
+  @Column({ type: 'enum', enum: EMessageRoleEnum })
+  role: EMessageRoleEnum;
 
   @ManyToOne(() => ChatModel, (chat) => chat.messages, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'chat_id' })

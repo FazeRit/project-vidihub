@@ -2,9 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { DATA_SOURCE_KEY } from 'src/shared/constants/datasource.const';
 import { MessageModel } from '../entities/message.model';
+import { IMessageWrite } from 'src/application/chat/ports/imessage-write.port';
+import { MessageEntity } from 'src/domain/message/entities/message.entity';
+import { MessageMapper } from '../mappers/message.mapper';
 
 @Injectable()
-export class MessageWriteRepository {
+export class MessageWriteRepository implements IMessageWrite {
   private readonly repo: Repository<MessageModel>;
 
   constructor(
@@ -12,5 +15,15 @@ export class MessageWriteRepository {
     private readonly dataSource: DataSource,
   ) {
     this.repo = this.dataSource.getRepository(MessageModel);
+  }
+
+  async insert(message: MessageEntity): Promise<void> {
+    const messageModel = await MessageMapper.toPersistence(message);
+
+    await this.repo.insert(messageModel);
+  }
+
+  async delete(id: string) {
+    await this.repo.delete(id);
   }
 }
