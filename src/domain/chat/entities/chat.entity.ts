@@ -1,4 +1,4 @@
-import { MessageEntity } from 'src/domain/message/entities/message.entity';
+import { MessageEntity } from 'src/domain/chat/entities/message.entity';
 
 export class ChatEntity {
   public readonly id: string;

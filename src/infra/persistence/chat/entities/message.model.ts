@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ChatModel } from '../../chat/entities/chat.model';
+import { ChatModel } from './chat.model';
 
 export enum EMessageRoleEnum {
   USER = 'user',

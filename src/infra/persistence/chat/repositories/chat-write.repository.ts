@@ -17,13 +17,19 @@ export class ChatWriteRepository implements IChatWrite {
     this.repo = this.dataSource.getRepository(ChatModel);
   }
 
-  async insert(chat: ChatEntity): Promise<void> {
+  async save(chat: ChatEntity): Promise<void> {
     const chatModel = await ChatMapper.toPersistence(chat);
 
-    await this.repo.insert(chatModel);
+    await this.repo.save(chatModel);
   }
 
   async delete(id: string): Promise<void> {
     await this.repo.delete(id);
+  }
+
+  async updateLastActivity(id: string): Promise<void> {
+    await this.repo.update(id, {
+      updatedAt: new Date(),
+    });
   }
 }
