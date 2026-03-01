@@ -29,7 +29,9 @@ export class ChatMapper {
     if (domain.messages) {
       orm.messages = domain.messages.map((messageDomain) => {
         const messageModel = MessageMapper.toPersistence(messageDomain);
+
         messageModel.chat = orm;
+
         return messageModel;
       });
     }

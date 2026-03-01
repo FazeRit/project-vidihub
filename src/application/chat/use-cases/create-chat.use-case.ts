@@ -15,7 +15,7 @@ export class CreateChatUseCase {
 
     const chat = ChatEntity.create(id, title, description);
 
-    await this.repo.insert(chat);
+    await this.repo.save(chat);
 
     return chat;
   }

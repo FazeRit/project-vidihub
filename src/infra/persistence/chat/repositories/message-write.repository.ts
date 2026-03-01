@@ -2,12 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { DATA_SOURCE_KEY } from 'src/shared/constants/datasource.const';
 import { MessageModel } from '../entities/message.model';
-import { IMessageRead } from 'src/application/chat/ports/imessage-read.port';
-import { MessageEntity } from 'src/domain/message/entities/message.entity';
+import { IMessageWrite } from 'src/application/chat/ports/imessage-write.port';
+import { MessageEntity } from 'src/domain/chat/entities/message.entity';
 import { MessageMapper } from '../mappers/message.mapper';
 
 @Injectable()
-export class MessageReadRepository implements IMessageRead {
+export class MessageWriteRepository implements IMessageWrite {
   private readonly repo: Repository<MessageModel>;
 
   constructor(
@@ -17,15 +17,13 @@ export class MessageReadRepository implements IMessageRead {
     this.repo = this.dataSource.getRepository(MessageModel);
   }
 
-  async findById(id: string): Promise<MessageEntity | null> {
-    const message = await this.repo.findOne({
-      where: {
-        id,
-      },
-    });
+  async save(message: MessageEntity): Promise<void> {
+    const messageModel = await MessageMapper.toPersistence(message);
 
-    if (!message) return null;
+    await this.repo.save(messageModel);
+  }
 
-    return MessageMapper.toDomain(message);
+  async delete(id: string) {
+    await this.repo.delete(id);
   }
 }

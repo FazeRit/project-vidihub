@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { MessageModel } from '../../message/entities/message.model';
+import { MessageModel } from './message.model';
 
 @Entity({ name: 'chats' })
 export class ChatModel {
