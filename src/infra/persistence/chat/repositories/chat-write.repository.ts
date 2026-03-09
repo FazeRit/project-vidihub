@@ -1,21 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
-import { DATA_SOURCE_KEY } from 'src/shared/constants/datasource.const';
+import { Injectable } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { ChatModel } from '../entities/chat.model';
 import { ChatEntity } from 'src/domain/chat/entities/chat.entity';
 import { IChatWrite } from 'src/application/chat/ports/ichat-write.port';
 import { ChatMapper } from '../mappers/chat.mapper';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class ChatWriteRepository implements IChatWrite {
-  private readonly repo: Repository<ChatModel>;
-
   constructor(
-    @Inject(DATA_SOURCE_KEY)
-    private readonly dataSource: DataSource,
-  ) {
-    this.repo = this.dataSource.getRepository(ChatModel);
-  }
+    @InjectRepository(ChatModel)
+    private readonly repo: Repository<ChatModel>,
+  ) {}
 
   async save(chat: ChatEntity): Promise<void> {
     const chatModel = await ChatMapper.toPersistence(chat);

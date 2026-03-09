@@ -1,6 +1,6 @@
 import { ChatEntity } from 'src/domain/chat/entities/chat.entity';
 import { ChatModel } from '../entities/chat.model';
-import { MessageMapper } from '../../message/mappers/message.mapper';
+import { MessageMapper } from './message.mapper';
 
 export class ChatMapper {
   static toDomain(orm: ChatModel): ChatEntity {

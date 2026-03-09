@@ -1,21 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
-import { DATA_SOURCE_KEY } from 'src/shared/constants/datasource.const';
+import { Injectable } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { MessageModel } from '../entities/message.model';
 import { IMessageRead } from 'src/application/chat/ports/imessage-read.port';
 import { MessageEntity } from 'src/domain/chat/entities/message.entity';
 import { MessageMapper } from '../mappers/message.mapper';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class MessageReadRepository implements IMessageRead {
-  private readonly repo: Repository<MessageModel>;
-
   constructor(
-    @Inject(DATA_SOURCE_KEY)
-    private readonly dataSource: DataSource,
-  ) {
-    this.repo = this.dataSource.getRepository(MessageModel);
-  }
+    @InjectRepository(MessageModel)
+    private readonly repo: Repository<MessageModel>,
+  ) {}
 
   async findById(id: string): Promise<MessageEntity | null> {
     const message = await this.repo.findOne({
@@ -29,13 +25,29 @@ export class MessageReadRepository implements IMessageRead {
     return MessageMapper.toDomain(message);
   }
 
+  async findByChatId(chatId: string, limit: number): Promise<MessageEntity[]> {
+    const messages = await this.repo.find({
+      where: {
+        chat: {
+          id: chatId,
+        },
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      take: limit,
+    });
+
+    return messages.reverse().map((msg) => MessageMapper.toDomain(msg));
+  }
+
   async exists(id: string): Promise<boolean> {
-    const message = await this.repo.findOne({
+    const count = await this.repo.count({
       where: {
         id,
       },
     });
 
-    return Boolean(message);
+    return count > 0;
   }
 }

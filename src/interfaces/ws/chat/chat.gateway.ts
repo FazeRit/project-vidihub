@@ -8,20 +8,28 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { SendMessageUseCase } from 'src/application/chat/use-cases/send-message.use-case';
-import { SendMessageDto } from './dto/send-message.dto';
-import { DeleteMessageDto } from './dto/delete-message.dto';
+import { SendMessageDto } from './dto/request/send-message.dto';
+import { DeleteMessageDto } from './dto/request/delete-message.dto';
 import { DeleteMessageUseCase } from 'src/application/chat/use-cases/delete-message.use-case';
-import { CreateChatDto } from './dto/create-chat.dto';
+import { CreateChatDto } from './dto/request/create-chat.dto';
 import { CreateChatUseCase } from 'src/application/chat/use-cases/create-chat.use-case';
-import { DeleteChatDto } from './dto/delete-chat.dto';
+import { DeleteChatDto } from './dto/request/delete-chat.dto';
 import { DeleteChatUseCase } from 'src/application/chat/use-cases/delete-chat.use-case';
-import { UsePipes, ValidationPipe } from '@nestjs/common';
-import { SelectChatDto } from './dto/select-chat.dto';
+import { Inject, UsePipes, ValidationPipe } from '@nestjs/common';
+import { SelectChatDto } from './dto/request/select-chat.dto';
+import { Logger } from 'winston';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { validationPipeConfig } from 'src/infra/config/validation-pipe/validation-pipe.config';
+import { GetChatHistoryUseCase } from 'src/application/chat/use-cases/get-chat-history.use-case';
+import { CHAT_EVENTS } from './const/chat-event.const';
+import { ChatStreamEventType } from 'src/application/chat/const/chat-stream.const';
+import { MessageChunkResponseDto } from './dto/response/message-chunk-response.dto';
+import { MessageResponseDto } from './dto/response/message-response.dto';
 
 @UsePipes(
   new ValidationPipe({
-    whitelist: true,
-    transform: true,
+    ...validationPipeConfig,
+    exceptionFactory: (errors) => new WsException(errors),
   }),
 )
 @WebSocketGateway({
@@ -39,85 +47,130 @@ export class ChatGateway {
     private readonly deleteMessageUseCase: DeleteMessageUseCase,
     private readonly createChatUseCase: CreateChatUseCase,
     private readonly deleteChatUseCase: DeleteChatUseCase,
+    private readonly getChatHistoryUseCase: GetChatHistoryUseCase,
+    @Inject(WINSTON_MODULE_PROVIDER)
+    private readonly logger: Logger,
   ) {}
 
-  @SubscribeMessage('send_message')
+  async handleConnection(@ConnectedSocket() client: Socket) {
+    this.logger.info(`Client connected: ${client.id}`);
+  }
+
+  @SubscribeMessage(CHAT_EVENTS.CLIENT.SEND_MESSAGE)
   async handleSendMessage(
     @MessageBody() dto: SendMessageDto,
     @ConnectedSocket() client: Socket,
   ) {
     const { chatId, content } = dto;
 
-    if (!client.rooms.has(dto.chatId)) {
-      throw new WsException('Ви не приєднані до цього чату');
+    if (!client.rooms.has(chatId)) {
+      throw new WsException('You are not connected to this chat');
     }
 
-    const message = await this.sendMessageUseCase.execute(chatId, content);
+    const stream = this.sendMessageUseCase.execute(chatId, content);
 
-    this.server.to(chatId).emit('message_received', {
-      id: message.id,
-      content: message.content,
-      role: message.role,
-      createdAt: message.createdAt,
-    });
+    for await (const event of stream) {
+      switch (event.type) {
+        case ChatStreamEventType.USER_MESSAGE_SAVED:
+          this.server
+            .to(chatId)
+            .emit(
+              CHAT_EVENTS.SERVER.MESSAGE_RECEIVED,
+              new MessageResponseDto(event.payload),
+            );
+          break;
+
+        case ChatStreamEventType.AI_CHUNK:
+          this.server
+            .to(chatId)
+            .emit(
+              CHAT_EVENTS.SERVER.MESSAGE_CHUNK,
+              new MessageChunkResponseDto(
+                event.payload.messageId,
+                event.payload.chunk,
+              ),
+            );
+          break;
+
+        case ChatStreamEventType.AI_MESSAGE_COMPLETE:
+          this.server
+            .to(chatId)
+            .emit(
+              CHAT_EVENTS.SERVER.MESSAGE_FINISHED,
+              new MessageResponseDto(event.payload),
+            );
+          break;
+      }
+    }
   }
 
-  @SubscribeMessage('delete_message')
+  @SubscribeMessage(CHAT_EVENTS.CLIENT.DELETE_MESSAGE)
   async handleDeleteMessage(@MessageBody() dto: DeleteMessageDto) {
     const { chatId, messageId } = dto;
 
     await this.deleteMessageUseCase.execute(chatId, messageId);
 
-    await this.server.to(chatId).emit('message_deleted', {
+    this.server.to(chatId).emit(CHAT_EVENTS.SERVER.MESSAGE_DELETED, {
       chatId,
       messageId,
     });
   }
 
-  @SubscribeMessage('select_chat')
+  @SubscribeMessage(CHAT_EVENTS.CLIENT.SELECT_CHAT)
   async handleSelectChat(
     @MessageBody() dto: SelectChatDto,
     @ConnectedSocket() client: Socket,
   ) {
-    for (const room of client.rooms) {
+    const { chatId, limit } = dto;
+
+    const currentRooms = Array.from(client.rooms);
+    for (const room of currentRooms) {
       if (room !== client.id) {
         await client.leave(room);
       }
     }
 
-    await client.join(dto.chatId);
+    await client.join(chatId);
 
-    client.emit('chat_selected', {
-      chatId: dto.chatId,
+    const messages = await this.getChatHistoryUseCase.execute(chatId, limit);
+
+    client.emit(CHAT_EVENTS.SERVER.CHAT_SELECTED, {
+      chatId: chatId,
+      messages: messages,
     });
   }
 
-  @SubscribeMessage('create_chat')
+  @SubscribeMessage(CHAT_EVENTS.CLIENT.CREATE_CHAT)
   async handleCreateChat(
     @MessageBody() dto: CreateChatDto,
     @ConnectedSocket() client: Socket,
   ) {
-    const { title, description } = dto;
+    try {
+      const chat = await this.createChatUseCase.execute(
+        dto.title,
+        dto.description,
+      );
 
-    const chat = await this.createChatUseCase.execute(title, description);
+      await client.join(chat.id);
 
-    await client.join(chat.id);
-
-    client.emit('chat_created', {
-      id: chat.id,
-      title: chat.title,
-      description: chat.description,
-      createdAt: chat.createdAt,
-    });
+      client.emit(CHAT_EVENTS.SERVER.CHAT_CREATED, {
+        id: chat.id,
+        title: chat.title,
+        description: chat.description,
+      });
+    } catch (e) {
+      this.logger.error('Create chat error', e);
+      throw new WsException('error');
+    }
   }
 
-  @SubscribeMessage('delete_chat')
+  @SubscribeMessage(CHAT_EVENTS.CLIENT.DELETE_CHAT)
   async handleDeleteChat(@MessageBody() dto: DeleteChatDto) {
     const { chatId } = dto;
 
     await this.deleteChatUseCase.execute(chatId);
 
-    this.server.to(chatId).emit('chat_deleted', {
+    this.server.to(chatId).emit(CHAT_EVENTS.SERVER.CHAT_DELETED, {
       chatId,
     });
 
