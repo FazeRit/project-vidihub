@@ -15,7 +15,7 @@ import { CreateChatDto } from './dto/request/create-chat.dto';
 import { CreateChatUseCase } from 'src/application/chat/use-cases/create-chat.use-case';
 import { DeleteChatDto } from './dto/request/delete-chat.dto';
 import { DeleteChatUseCase } from 'src/application/chat/use-cases/delete-chat.use-case';
-import { Inject, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Inject, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { SelectChatDto } from './dto/request/select-chat.dto';
 import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
@@ -25,6 +25,8 @@ import { CHAT_EVENTS } from './const/chat-event.const';
 import { ChatStreamEventType } from 'src/application/chat/const/chat-stream.const';
 import { MessageChunkResponseDto } from './dto/response/message-chunk-response.dto';
 import { MessageResponseDto } from './dto/response/message-response.dto';
+import { WsThrottlerGuard } from 'src/shared/guards/ws-throttler.guard';
+import { WsThrottle } from 'src/shared/decorators/ws-throttler.decorator';
 
 @UsePipes(
   new ValidationPipe({
@@ -32,6 +34,8 @@ import { MessageResponseDto } from './dto/response/message-response.dto';
     exceptionFactory: (errors) => new WsException(errors),
   }),
 )
+@UseGuards(WsThrottlerGuard)
+@WsThrottle('MEDIUM')
 @WebSocketGateway({
   namespace: 'chats',
   cors: {
@@ -145,23 +149,18 @@ export class ChatGateway {
     @MessageBody() dto: CreateChatDto,
     @ConnectedSocket() client: Socket,
   ) {
-    try {
-      const chat = await this.createChatUseCase.execute(
-        dto.title,
-        dto.description,
-      );
+    const chat = await this.createChatUseCase.execute(
+      dto.title,
+      dto.description,
+    );
 
-      await client.join(chat.id);
+    await client.join(chat.id);
 
-      client.emit(CHAT_EVENTS.SERVER.CHAT_CREATED, {
-        id: chat.id,
-        title: chat.title,
-        description: chat.description,
-      });
-    } catch (e) {
-      this.logger.error('Create chat error', e);
-      throw new WsException('error');
-    }
+    client.emit(CHAT_EVENTS.SERVER.CHAT_CREATED, {
+      id: chat.id,
+      title: chat.title,
+      description: chat.description,
+    });
   }
 
   @SubscribeMessage(CHAT_EVENTS.CLIENT.DELETE_CHAT)
